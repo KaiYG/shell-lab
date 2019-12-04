@@ -146,7 +146,6 @@ int main(int argc, char **argv)
         /* Evaluate the command line */
         eval(cmdline);
         fflush(stdout);
-        fflush(stdout);
     } 
 
     exit(0); /* control never reaches here */
@@ -165,6 +164,32 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    char *argv[MAXARGS];  /* argument list execve() */
+    int bg;  /* should the job runs in bg or fg */
+    pid_t pid;
+    int status;
+    int is_builtin;
+
+    bg = parseline(cmdline, argv);
+
+    if (argv[0] == NULL) { /* ignore empty lines */
+        return;
+    }
+    is_builtin = builtin_cmd(argv);
+    if (!is_builtin) {
+        if ((pid = fork()) == 0) {  /* child runs the job */
+            if(execve(argv[0], argv, environ) < 0) {
+                unix_error("execve error");
+            }
+        }
+    }
+    /* parent waits for fg job terminate */
+    if (!bg && !is_builtin) {
+        if (waitpid(pid, &status, 0) < 0) {
+            unix_error("waitpid error");
+        }
+    }
+    
     return;
 }
 
@@ -188,7 +213,7 @@ int parseline(const char *cmdline, char **argv)
     while (*buf && (*buf == ' ')) { /* ignore leading spaces */
 	    buf++;
     }
-    
+
     /* Build the argv list */
     argc = 0;
     if (*buf == '\'') {
@@ -232,6 +257,9 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+    if (!strcmp(argv[0], "quit")) {  /* quit command */
+        exit(0);
+    }
     return 0;     /* not a builtin command */
 }
 
