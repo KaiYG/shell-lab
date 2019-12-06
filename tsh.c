@@ -171,10 +171,10 @@ void eval(char *cmdline)
     int is_builtin;
 
     bg = parseline(cmdline, argv);
-
     if (argv[0] == NULL) { /* ignore empty lines */
         return;
     }
+    
     is_builtin = builtin_cmd(argv);
     if (!is_builtin) {
         if ((pid = fork()) == 0) {  /* child runs the job */
