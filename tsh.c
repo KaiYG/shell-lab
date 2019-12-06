@@ -174,22 +174,25 @@ void eval(char *cmdline)
     if (argv[0] == NULL) { /* ignore empty lines */
         return;
     }
-    
     is_builtin = builtin_cmd(argv);
+
     if (!is_builtin) {
         if ((pid = fork()) == 0) {  /* child runs the job */
             if(execve(argv[0], argv, environ) < 0) {
                 unix_error("execve error");
             }
         }
-    }
-    /* parent waits for fg job terminate */
-    if (!bg && !is_builtin) {
-        if (waitpid(pid, &status, 0) < 0) {
-            unix_error("waitpid error");
+        addjob(jobs, pid, bg, cmdline);
+        if (!bg) {  /* parent waits for fg job terminate */
+            if (waitpid(pid, &status, 0) < 0) {
+                unix_error("waitpid error");
+            }
+            deletejob(jobs, pid);
+        }
+        else {  /* shows information of bg job */
+            printf("[%d] (%d) %s", getjobpid(jobs, pid)->pid, pid, cmdline);
         }
     }
-    
     return;
 }
 
