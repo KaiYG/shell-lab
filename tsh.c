@@ -169,6 +169,9 @@ void eval(char *cmdline)
     pid_t pid;
     int status;
     int is_builtin;
+    sigset_t mask;
+
+    sigemptyset(&mask);
 
     bg = parseline(cmdline, argv);
     if (argv[0] == NULL) { /* ignore empty lines */
@@ -176,13 +179,23 @@ void eval(char *cmdline)
     }
     is_builtin = builtin_cmd(argv);
 
-    if (!is_builtin) {
+    if (!is_builtin) {  /* no need to fork buildin command */
+        sigaddset(&mask, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &mask, NULL);  /* block SIGCHLD */
+
         if ((pid = fork()) == 0) {  /* child runs the job */
+            sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
             if(execve(argv[0], argv, environ) < 0) {
                 unix_error("execve error");
             }
         }
-        addjob(jobs, pid, bg, cmdline);
+        if(!bg) {  /* adds the child to job list */
+            addjob(jobs, pid, FG, cmdline);
+        }
+        else {
+            addjob(jobs, pid, BG, cmdline);
+        }
+        sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
         if (!bg) {  /* parent waits for fg job terminate */
             if (waitpid(pid, &status, 0) < 0) {
                 unix_error("waitpid error");
@@ -190,7 +203,7 @@ void eval(char *cmdline)
             deletejob(jobs, pid);
         }
         else {  /* shows information of bg job */
-            printf("[%d] (%d) %s", getjobpid(jobs, pid)->pid, pid, cmdline);
+            printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
         }
     }
     return;
