@@ -165,8 +165,8 @@ int main(int argc, char **argv)
 void eval(char *cmdline) 
 {
     char *argv[MAXARGS];  /* argument list execve() */
-    int bg;  /* should the job runs in bg or fg */
     pid_t pid;
+    int bg;  /* should the job runs in bg or fg */
     int status;
     int is_builtin;
     sigset_t mask;
@@ -177,12 +177,11 @@ void eval(char *cmdline)
     if (argv[0] == NULL) { /* ignore empty lines */
         return;
     }
-    is_builtin = builtin_cmd(argv);
 
+    is_builtin = builtin_cmd(argv);
     if (!is_builtin) {  /* no need to fork buildin command */
         sigaddset(&mask, SIGCHLD);
         sigprocmask(SIG_BLOCK, &mask, NULL);  /* block SIGCHLD */
-
         if ((pid = fork()) == 0) {  /* child runs the job */
             sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
             if(execve(argv[0], argv, environ) < 0) {
@@ -196,6 +195,7 @@ void eval(char *cmdline)
             addjob(jobs, pid, BG, cmdline);
         }
         sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
+
         if (!bg) {  /* parent waits for fg job terminate */
             if (waitpid(pid, &status, 0) < 0) {
                 unix_error("waitpid error");
@@ -275,6 +275,10 @@ int builtin_cmd(char **argv)
 {
     if (!strcmp(argv[0], "quit")) {  /* quit command */
         exit(0);
+    }
+    if (!strcmp(argv[0], "jobs")) {  /* jobs command */
+        listjobs(jobs);
+        return 1;
     }
     return 0;     /* not a builtin command */
 }
