@@ -182,6 +182,7 @@ void eval(char *cmdline)
         sigprocmask(SIG_BLOCK, &mask, NULL);  /* block SIGCHLD */
         if ((pid = fork()) == 0) {  /* child runs the job */
             sigprocmask(SIG_UNBLOCK, &mask, NULL); /* unblock SIGCHLD in child */
+            setpgid(0,0);  /* puts the child in a new process group, GID = PID */
             if(execve(argv[0], argv, environ) < 0) {
                 unix_error("execve error");
             }
