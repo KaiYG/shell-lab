@@ -167,7 +167,6 @@ void eval(char *cmdline)
     char *argv[MAXARGS];  /* argument list execve() */
     pid_t pid;
     int bg;  /* should the job runs in bg or fg */
-    int status;
     sigset_t mask;
 
     sigemptyset(&mask);
@@ -314,6 +313,18 @@ void sigchld_handler(int sig)
         if(WIFEXITED(status)) {  /* process terminated normaly */
             deletejob(jobs, pid);
         }
+        if(WIFSIGNALED(status)) {  /* process terminated by signals e.g., ctrl-c */
+            printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, WTERMSIG(status));
+            deletejob(jobs, pid);
+        }
+        if(WIFSTOPPED(status)) {  /* process stopped by signals e.g., ctrl-z */
+            printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid, WSTOPSIG(status));
+            struct job_t *job = getjobpid(jobs, pid);
+            job->state = ST;
+        }
+    }
+    if(errno != ECHILD) {
+        unix_error("waitpid error");
     }
     return;
 }
@@ -325,6 +336,13 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    pid_t pid = fgpid(jobs);
+    
+    if(pid != 0) {  /* do nothing if no FG job exist */
+        if(kill(-pid, SIGINT) < 0) {
+            unix_error("sigint error");
+        }
+    }
     return;
 }
 
@@ -335,6 +353,13 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    pid_t pid = fgpid(jobs);
+
+    if(pid != 0) {  /* do nothing if no FG job exist */
+        if(kill(-pid, SIGTSTP) < 0) {
+            unix_error("sigint error");
+        }
+    }
     return;
 }
 
