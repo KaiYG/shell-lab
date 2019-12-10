@@ -168,7 +168,6 @@ void eval(char *cmdline)
     pid_t pid;
     int bg;  /* should the job runs in bg or fg */
     int status;
-    int is_builtin;
     sigset_t mask;
 
     sigemptyset(&mask);
@@ -178,29 +177,21 @@ void eval(char *cmdline)
         return;
     }
 
-    is_builtin = builtin_cmd(argv);
-    if (!is_builtin) {  /* no need to fork buildin command */
+    if (!builtin_cmd(argv)) {  /* no need to fork buildin command */
         sigaddset(&mask, SIGCHLD);
         sigprocmask(SIG_BLOCK, &mask, NULL);  /* block SIGCHLD */
         if ((pid = fork()) == 0) {  /* child runs the job */
-            sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
+            sigprocmask(SIG_UNBLOCK, &mask, NULL); /* unblock SIGCHLD in child */
             if(execve(argv[0], argv, environ) < 0) {
                 unix_error("execve error");
             }
         }
-        if(!bg) {  /* adds the child to job list */
-            addjob(jobs, pid, FG, cmdline);
-        }
-        else {
-            addjob(jobs, pid, BG, cmdline);
-        }
+        /* adds the child to job list */
+        addjob(jobs, pid, (bg?BG:FG), cmdline);
         sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
 
         if (!bg) {  /* parent waits for fg job terminate */
-            if (waitpid(pid, &status, 0) < 0) {
-                unix_error("waitpid error");
-            }
-            deletejob(jobs, pid);
+            waitfg(pid);
         }
         else {  /* shows information of bg job */
             printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
@@ -296,6 +287,9 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    while(pid == fgpid(jobs)) {
+        sleep(0);
+    }
     return;
 }
 
@@ -312,6 +306,14 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    pid_t pid;
+    int status;
+
+    while((pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0) {
+        if(WIFEXITED(status)) {  /* process terminated normaly */
+            deletejob(jobs, pid);
+        }
+    }
     return;
 }
 
