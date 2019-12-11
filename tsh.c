@@ -323,6 +323,9 @@ void sigchld_handler(int sig)
             job->state = ST;
         }
     }
+    if(pid < 0 && errno != ECHILD) {
+        unix_error("waitpid error");
+    }  
     return;
 }
 
