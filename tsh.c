@@ -271,6 +271,10 @@ int builtin_cmd(char **argv)
         listjobs(jobs);
         return 1;
     }
+    if(!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {  /* bg and fg command */
+        do_bgfg(argv);
+        return 1;
+    }
     return 0;     /* not a builtin command */
 }
 
@@ -339,6 +343,7 @@ void sigint_handler(int sig)
     pid_t pid = fgpid(jobs);
     
     if(pid != 0) {  /* do nothing if no FG job exist */
+    /* send signal to entire foreground process group */
         if(kill(-pid, SIGINT) < 0) {
             unix_error("sigint error");
         }
@@ -356,6 +361,7 @@ void sigtstp_handler(int sig)
     pid_t pid = fgpid(jobs);
 
     if(pid != 0) {  /* do nothing if no FG job exist */
+    /* send signal to entire foreground process group */
         if(kill(-pid, SIGTSTP) < 0) {
             unix_error("sigint error");
         }
