@@ -285,6 +285,8 @@ void do_bgfg(char **argv)
 {
     char *id = argv[1];
     struct job_t *job;
+    int i;
+    int length;
 
     if(id == NULL) {
         printf("%s command requires PID or %%jobid argument\n",argv[0]);
@@ -292,22 +294,32 @@ void do_bgfg(char **argv)
     }
     if(id[0] == '%') {  /* identified by JID */
         id++;  /* skip the '%' */
+        length = strlen(id);
+        for (i = 0; i < length; i++) {  /* check if ID are digit numbers */
+            if(!isdigit(id[i])) {
+                printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+                return;
+            }
+        }
         job = getjobjid(jobs, atoi(id));
         if(job == NULL) {
             printf("%%%d: No such job\n", atoi(id));
             return;
         }
     }
-    else if(isdigit(id)) {  /* identified by PID */
+    else {  /* identified by PID */
+        length = strlen(id);
+        for (i = 0; i < length; i++) {  /* check if ID are digit numbers */
+            if(!isdigit(id[i])) {
+                printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+                return;
+            }
+        }
         job = getjobpid(jobs, atoi(id));
         if(job == NULL) {
             printf("(%d): No such process\n", atoi(id));
             return;
         }
-    }
-    else {
-        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
-        return;
     }
 
     kill(-(job->pid), SIGCONT); /* send SIGCONT to the job */
