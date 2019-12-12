@@ -183,7 +183,8 @@ void eval(char *cmdline)
             sigprocmask(SIG_UNBLOCK, &mask, NULL); /* unblock SIGCHLD in child */
             setpgid(0,0);  /* puts the child in a new process group, GID = PID */
             if(execve(argv[0], argv, environ) < 0) {
-                unix_error("execve error");
+                printf("%s: Command not found\n",argv[0]);
+                exit(0);
             }
         }
         /* adds the child to job list */
