@@ -295,13 +295,19 @@ void do_bgfg(char **argv)
         job = getjobjid(jobs, atoi(id));
         if(job == NULL) {
             printf("%%%d: No such job\n", atoi(id));
+            return;
         }
     }
-    else {  /* identified by PID */
+    else if(isdigit(id)) {  /* identified by PID */
         job = getjobpid(jobs, atoi(id));
         if(job == NULL) {
             printf("(%d): No such process\n", atoi(id));
+            return;
         }
+    }
+    else {
+        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+        return;
     }
 
     kill(-(job->pid), SIGCONT); /* send SIGCONT to the job */
