@@ -362,6 +362,7 @@ void sigchld_handler(int sig)
 {
     pid_t pid;
     int status;
+    int olderrno = errno;
 
     while((pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0) {
         if(WIFEXITED(status)) {  /* process terminated normaly */
@@ -379,7 +380,8 @@ void sigchld_handler(int sig)
     }
     if(pid < 0 && errno != ECHILD) {
         unix_error("waitpid error");
-    }  
+    }
+    errno = olderrno;
     return;
 }
 
@@ -390,6 +392,7 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    int olderrno = errno;
     pid_t pid = fgpid(jobs);
     
     if(pid != 0) {  /* do nothing if no FG job exist */
@@ -398,6 +401,7 @@ void sigint_handler(int sig)
             unix_error("sigint error");
         }
     }
+    errno = olderrno;
     return;
 }
 
@@ -408,6 +412,7 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    int olderrno = errno;
     pid_t pid = fgpid(jobs);
 
     if(pid != 0) {  /* do nothing if no FG job exist */
@@ -416,6 +421,7 @@ void sigtstp_handler(int sig)
             unix_error("sigint error");
         }
     }
+    errno = olderrno;
     return;
 }
 
