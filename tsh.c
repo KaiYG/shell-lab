@@ -41,6 +41,15 @@ char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
 int verbose = 0;            /* if true, print additional output */
 int nextjid = 1;            /* next job ID to allocate */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
+volatile sig_atomic_t sigint_flag = 0;
+volatile sig_atomic_t sigstp_flag = 0;
+volatile pid_t sigint_pid = 0;
+volatile pid_t sigstp_pid = 0;
+volatile pid_t sigint_jid = 0;
+volatile pid_t sigstp_jid = 0;
+volatile int sigint_WIF;
+volatile int sigstp_WIF;
+volatile sig_atomic_t fgjob_flag = 0;
 
 struct job_t {              /* The job struct */
     pid_t pid;              /* job PID */
@@ -146,6 +155,18 @@ int main(int argc, char **argv)
         /* Evaluate the command line */
         eval(cmdline);
         fflush(stdout);
+
+        /* signal hamdling */
+        if(sigint_flag) {
+            printf("Job [%d] (%d) terminated by signal %d\n", sigint_jid, sigint_pid, sigint_WIF);
+            sigint_flag = 0;
+        }
+        if(sigstp_flag) {
+            printf("Job [%d] (%d) stopped by signal %d\n", sigstp_jid, sigstp_pid, sigstp_WIF);
+            struct job_t *job = getjobpid(jobs, sigstp_pid);
+            job->state = ST;
+            sigstp_flag = 0;
+        }
     } 
 
     exit(0); /* control never reaches here */
@@ -192,6 +213,7 @@ void eval(char *cmdline)
         sigprocmask(SIG_UNBLOCK, &mask, NULL);  /* unblock SIGCHLD */
 
         if (!bg) {  /* parent waits for fg job terminate */
+            fgjob_flag = 1;
             waitfg(pid);
         }
         else {  /* shows information of bg job */
@@ -327,6 +349,7 @@ void do_bgfg(char **argv)
 
     if(!strcmp(argv[0], "fg")) {  /* waits until fg job terminates */
         job->state = FG;
+        fgjob_flag = 1;
         waitfg(job->pid);
     }
     else {  /* shows information of bg job */
@@ -341,7 +364,7 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    while(pid == fgpid(jobs)) {
+    while(fgjob_flag) {
         sleep(0);
     }
     return;
@@ -363,19 +386,39 @@ void sigchld_handler(int sig)
     pid_t pid;
     int status;
     int olderrno = errno;
+    sigset_t mask_all, prev_all;
+
+    sigfillset(&mask_all);
 
     while((pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0) {
-        if(WIFEXITED(status)) {  /* process terminated normaly */
+        if(WIFEXITED(status)) {  /* process terminated normaly */       
+            if(pid == fgpid(jobs)) {
+                fgjob_flag = 0;
+            }
+            sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
             deletejob(jobs, pid);
+            sigprocmask(SIG_SETMASK, &prev_all, NULL);
         }
         if(WIFSIGNALED(status)) {  /* process terminated by signals e.g., ctrl-c */
-            printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, WTERMSIG(status));
+            if(pid == fgpid(jobs)) {
+                fgjob_flag = 0;
+            }
+            sigint_flag = 1;
+            sigint_pid = pid;
+            sigint_jid = pid2jid(sigint_pid);
+            sigint_WIF =  WTERMSIG(status);
+            sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
             deletejob(jobs, pid);
+            sigprocmask(SIG_SETMASK, &prev_all, NULL);
         }
         if(WIFSTOPPED(status)) {  /* process stopped by signals e.g., ctrl-z */
-            printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid, WSTOPSIG(status));
-            struct job_t *job = getjobpid(jobs, pid);
-            job->state = ST;
+            if(pid == fgpid(jobs)) {
+                fgjob_flag = 0;
+            }
+            sigstp_flag = 1;
+            sigstp_pid = pid;
+            sigstp_jid = pid2jid(sigstp_pid);
+            sigstp_WIF = WSTOPSIG(status);
         }
     }
     if(pid < 0 && errno != ECHILD) {
