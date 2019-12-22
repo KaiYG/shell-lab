@@ -94,6 +94,10 @@ void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
+static size_t sio_strlen(char s[]);
+ssize_t sio_puts(char s[]);
+void sio_error(char s[]);
+
 /*
  * main - The shell's main routine 
  */
@@ -389,7 +393,7 @@ void sigchld_handler(int sig)
     sigset_t mask_all, prev_all;
 
     sigfillset(&mask_all);
-
+    
     while((pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0) {
         if(WIFEXITED(status)) {  /* process terminated normaly */       
             if(pid == fgpid(jobs)) {
@@ -422,7 +426,7 @@ void sigchld_handler(int sig)
         }
     }
     if(pid < 0 && errno != ECHILD) {
-        unix_error("waitpid error");
+        sio_error("waitpid error");
     }
     errno = olderrno;
     return;
@@ -441,7 +445,7 @@ void sigint_handler(int sig)
     if(pid != 0) {  /* do nothing if no FG job exist */
     /* send signal to entire foreground process group */
         if(kill(-pid, SIGINT) < 0) {
-            unix_error("sigint error");
+            sio_error("sigint error");
         }
     }
     errno = olderrno;
@@ -461,7 +465,7 @@ void sigtstp_handler(int sig)
     if(pid != 0) {  /* do nothing if no FG job exist */
     /* send signal to entire foreground process group */
         if(kill(-pid, SIGTSTP) < 0) {
-            unix_error("sigint error");
+            sio_error("sigint error");
         }
     }
     errno = olderrno;
@@ -697,5 +701,23 @@ void sigquit_handler(int sig)
     exit(1);
 }
 
+/* signal-safe I/O functions from csapp.c */
+static size_t sio_strlen(char s[])
+{
+    int i = 0;
 
+    while (s[i] != '\0')
+        ++i;
+    return i;
+}
 
+ssize_t sio_puts(char s[]) /* Put string */
+{
+    return write(STDOUT_FILENO, s, sio_strlen(s)); //line:csapp:siostrlen
+}
+
+void sio_error(char s[]) /* Put error message and exit */
+{
+    sio_puts(s);
+    _exit(1);                                      //line:csapp:sioexit
+}
