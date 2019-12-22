@@ -158,7 +158,6 @@ int main(int argc, char **argv)
 
         /* Evaluate the command line */
         eval(cmdline);
-        fflush(stdout);
 
         /* signal hamdling */
         if(sigint_flag) {
@@ -171,6 +170,7 @@ int main(int argc, char **argv)
             job->state = ST;
             sigstp_flag = 0;
         }
+        fflush(stdout);
     } 
 
     exit(0); /* control never reaches here */
