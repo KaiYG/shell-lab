@@ -109,6 +109,8 @@ int main(int argc, char **argv)
     char c;
     char cmdline[MAXLINE];
     int emit_prompt = 1; /* emit prompt (default) */
+    sigset_t mask_all, prev_all;
+    sigfillset(&mask_all);
 
     /* Redirect stderr to stdout (so that driver will get all output
      * on the pipe connected to stdout) */
@@ -169,8 +171,10 @@ int main(int argc, char **argv)
         }
         if(sigstp_flag) {
             printf("Job [%d] (%d) stopped by signal %d\n", sigstp_jid, sigstp_pid, sigstp_WIF);
+            sigprocmask(SIG_BLOCK, &mask_all, &prev_all); /* block all signals */
             struct job_t *job = getjobpid(jobs, sigstp_pid);
             job->state = ST;
+            sigprocmask(SIG_SETMASK, &prev_all, NULL); /* unblock signal */
             sigstp_flag = 0;
         }
         fflush(stdout);
@@ -296,13 +300,18 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+    sigset_t mask_all, prev_all;
+    sigfillset(&mask_all);
+
     /* quit command */
     if (!strcmp(argv[0], "quit")) {
         exit(0);
     }
     /* jobs command */
     if (!strcmp(argv[0], "jobs")) {
+        sigprocmask(SIG_BLOCK, &mask_all, &prev_all); /* block all signals */
         listjobs(jobs);
+        sigprocmask(SIG_SETMASK, &prev_all, NULL); /* unblock signal */
         return 1;
     }
     /* bg and fg command */
@@ -323,7 +332,10 @@ void do_bgfg(char **argv)
     struct job_t *job;
     int i;
     int length;
+    sigset_t mask_all, prev_all;
+    sigfillset(&mask_all);
 
+    sigprocmask(SIG_BLOCK, &mask_all, &prev_all); /* block all signals */
     if(id == NULL) {
         printf("%s command requires PID or %%jobid argument\n",argv[0]);
         return;
@@ -359,16 +371,18 @@ void do_bgfg(char **argv)
         }
     }
 
-    kill(-(job->pid), SIGCONT); /* send SIGCONT to the job's group */
-
     if(!strcmp(argv[0], "fg")) {  /* waits until fg job terminates */
         job->state = FG;
         fgjob_flag = 1;
+        kill(-(job->pid), SIGCONT); /* send SIGCONT to the job's group */
+        sigprocmask(SIG_SETMASK, &prev_all, NULL); /* unblock signal */
         waitfg(job->pid);
     }
     else {  /* shows information of bg job */
         job->state = BG;
+        kill(-(job->pid), SIGCONT); /* send SIGCONT to the job's group */
         printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+        sigprocmask(SIG_SETMASK, &prev_all, NULL); /* unblock signal */
     }
     return;
 }
